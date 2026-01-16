@@ -4,20 +4,21 @@ A secure service that manages Transmission Docker containers declaratively via g
 
 ## Quick Start
 
-```bash
-# Install dependencies & generate gRPC code
-uv sync
-make proto
+Pull the pre-built image and run:
 
-# Start server (requires Docker socket access)
-export SOCKET_PATH=/tmp/transctrl.sock
-uv run src/server.py
+```bash
+docker run -d \
+  --name transctrl \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v transctrl-socket:/var/run/transctrl \
+  -v /mnt:/mnt:ro \
+  -e ALLOWED_MOUNT_BASE=/mnt \
+  ghcr.io/redsudo/transctrl:latest
 ```
 
-Or using Docker Compose:
-```bash
-docker-compose up -d
-```
+Your core service can then connect via the Unix socket at `/var/run/transctrl/transctrl.sock`.
+
+For a complete setup, see [examples/docker-compose.yml](examples/docker-compose.yml).
 
 ## Configuration
 
@@ -34,7 +35,7 @@ docker-compose up -d
 ```python
 from client.transctrl_client import TransmissionControllerClient
 
-client = TransmissionControllerClient('/tmp/transctrl.sock')
+client = TransmissionControllerClient('/var/run/transctrl/transctrl.sock')
 
 # Reconcile desired state
 result = client.reconcile([
@@ -52,6 +53,63 @@ result = client.reconcile([
 status = client.get_status()
 ```
 
+## Deployment
+
+### With Docker Socket Proxy (Recommended)
+
+> **Security Note**: Mounting the Docker socket directly gives transctrl full control over the Docker daemon. For production deployments, use a [Docker socket proxy](https://github.com/Tecnativa/docker-socket-proxy) to restrict API access to only the operations transctrl needs (container create/delete). This limits the blast radius if transctrl is compromised.
+
+See [examples/docker-compose.proxy.yml](examples/docker-compose.proxy.yml) for a complete example.
+
+```yaml
+services:
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      CONTAINERS: 1
+      POST: 1
+      DELETE: 1
+
+  transctrl:
+    image: ghcr.io/redsudo/transctrl:latest
+    environment:
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      ALLOWED_MOUNT_BASE: /mnt
+    volumes:
+      - transctrl-socket:/var/run/transctrl
+      - /mnt:/mnt:ro
+    # No docker.sock mount needed
+
+volumes:
+  transctrl-socket:
+```
+
+### Docker Compose (without Docker Socket Proxy)
+
+```yaml
+services:
+  transctrl:
+    image: ghcr.io/redsudo/transctrl:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - transctrl-socket:/var/run/transctrl
+      - /mnt:/mnt:ro
+    environment:
+      ALLOWED_MOUNT_BASE: /mnt
+
+  core:
+    image: your-core-service
+    volumes:
+      - transctrl-socket:/var/run/transctrl:ro
+    environment:
+      TRANSCTRL_SOCKET: /var/run/transctrl/transctrl.sock
+
+volumes:
+  transctrl-socket:
+```
+
 ## Development
 
 ### Prerequisites
@@ -60,7 +118,7 @@ status = client.get_status()
 - Docker
 - Make
 
-### Local Setup
+### Setup
 
 ```bash
 # Install dependencies
@@ -73,7 +131,11 @@ make proto
 ### Running Tests
 
 ```bash
+# Unit tests
 make test
+
+# Integration tests (runs in Docker-in-Docker)
+make test-integration
 ```
 
 ### Building Docker Image
@@ -86,5 +148,15 @@ make build-image
 
 - **Stateless**: The system relies on Docker labels (`transctrl.managed=true`) as the source of truth.
 - **Isolation**: Minimal capabilities (CHOWN, SETGID, SETUID) and `no-new-privileges` for containers.
-- **Path Restriction**: Only allows mounting host paths under a pre-configured base directory.
 - **Socket Communication**: Uses gRPC over Unix sockets for local, secure inter-process communication.
+
+### Path Restriction (`ALLOWED_MOUNT_BASE`)
+
+transctrl validates that all paths (`config_path`, `data_path`, `watch_path`) in reconcile requests start with `ALLOWED_MOUNT_BASE`. This prevents a compromised core service from creating Transmission containers with arbitrary host mounts like `/etc` or `/root/.ssh`.
+
+**Why mount `/mnt:/mnt:ro`?**
+
+transctrl needs to verify that requested paths actually exist before creating containers (`os.path.exists()`). Without this mount, transctrl can't see host paths from inside its container. The `:ro` (read-only) mount is sufficient—transctrl only needs to check existence, not write to these paths. The actual read-write mounts are configured via the Docker API when transctrl creates Transmission containers.
+
+**Example**: If `ALLOWED_MOUNT_BASE=/mnt`, a request for `config_path: /etc/passwd` will be rejected, but `config_path: /mnt/user1/config` will be allowed (if the path exists).
+

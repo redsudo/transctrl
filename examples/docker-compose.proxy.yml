@@ -1,0 +1,47 @@
+# Docker Compose with Docker Socket Proxy
+# Uses tecnativa/docker-socket-proxy to limit Docker API access for increased security
+
+services:
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      # Only allow container operations transctrl needs
+      CONTAINERS: 1
+      POST: 1
+      DELETE: 1
+      # Deny everything else
+      NETWORKS: 0
+      SERVICES: 0
+      TASKS: 0
+      VOLUMES: 0
+      INFO: 0
+
+  transctrl:
+    image: ghcr.io/redsudo/transctrl:latest
+    restart: unless-stopped
+    depends_on:
+      - docker-socket-proxy
+    environment:
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      ALLOWED_MOUNT_BASE: /mnt
+      LOG_LEVEL: INFO
+    volumes:
+      - transctrl-socket:/var/run/transctrl
+      - /mnt:/mnt:ro
+    # Note: No docker.sock mount - all access goes through the proxy
+
+  # Example core service that communicates with transctrl
+  # core:
+  #   image: your-core-service
+  #   depends_on:
+  #     - transctrl
+  #   volumes:
+  #     - transctrl-socket:/var/run/transctrl:ro
+  #   environment:
+  #     TRANSCTRL_SOCKET: /var/run/transctrl/transctrl.sock
+
+volumes:
+  transctrl-socket:
