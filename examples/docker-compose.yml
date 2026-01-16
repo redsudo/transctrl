@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  transctrl:
+    build: .
+    image: transctrl:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - transctrl-socket:/var/run/transctrl
+      - /mnt:/mnt:ro
+    environment:
+      ALLOWED_MOUNT_BASE: /mnt
+      LOG_LEVEL: INFO
+
+  # Example core service that would use transctrl
+  # core:
+  #   image: your-core-service
+  #   volumes:
+  #     - transctrl-socket:/var/run/transctrl:ro
+  #   environment:
+  #     TRANSCTRL_SOCKET: /var/run/transctrl/transctrl.sock
+
+volumes:
+  transctrl-socket:

@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package transctrl;
+
+import "google/protobuf/timestamp.proto";
+
+service TransmissionController {
+  rpc Reconcile(DesiredState) returns (ReconcileResult);
+  rpc GetStatus(Empty) returns (CurrentState);
+  rpc GetInstance(InstanceId) returns (InstanceStatus);
+}
+
+message Empty {}
+
+message InstanceId {
+  string id = 1;
+}
+
+message ResourceLimits {
+  string memory = 1; // e.g., "512m"
+  int32 cpu_quota = 2; // e.g., 50000 (50%)
+}
+
+message InstanceSpec {
+  string id = 1;
+  string config_path = 2;
+  string data_path = 3;
+  string watch_path = 4;
+  int32 web_port = 5;
+  int32 data_port = 6;
+  ResourceLimits resource_limits = 7;
+  string image_tag = 8;
+}
+
+message DesiredState {
+  repeated InstanceSpec instances = 1;
+}
+
+enum Status {
+  RUNNING = 0;
+  STOPPED = 1;
+  CREATING = 2;
+  ERROR = 3;
+}
+
+message InstanceStatus {
+  string id = 1;
+  string container_id = 2;
+  Status status = 3;
+  string error_message = 4;
+  google.protobuf.Timestamp created_at = 5;
+  int32 actual_web_port = 6;
+  int32 actual_data_port = 7;
+}
+
+message CurrentState {
+  repeated InstanceStatus instances = 1;
+}
+
+message ReconcileResult {
+  repeated InstanceStatus instances = 1;
+  int32 created_count = 2;
+  int32 destroyed_count = 3;
+  int32 unchanged_count = 4;
+  int32 recreated_count = 5;
+  repeated string errors = 6;
+}

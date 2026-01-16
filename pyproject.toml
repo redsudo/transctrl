@@ -1,0 +1,15 @@
+[project]
+name = "transctrl"
+version = "0.1.0"
+description = "A secure service that manages Transmission Docker containers declaratively via gRPC over Unix sockets"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "docker==6.1.3",
+    "grpcio==1.60.0",
+    "grpcio-tools==1.60.0",
+    "pydantic==2.5.2",
+    "pydantic-settings==2.1.0",
+    "pytest==7.4.3",
+    "python-dotenv==1.0.0",
+]
