@@ -2,6 +2,7 @@ import grpc
 import logging
 import os
 import json
+import signal
 from concurrent import futures
 from datetime import datetime
 from google.protobuf import timestamp_pb2
@@ -121,6 +122,15 @@ def serve():
     
     logger.info(f"Server starting on {socket_path}")
     server.start()
+    
+    # Handle graceful shutdown
+    def handle_sigterm(*args):
+        logger.info("Received SIGTERM, shutting down...")
+        done_event = server.stop(grace=5)
+        done_event.wait(5)
+        logger.info("Server stopped")
+    
+    signal.signal(signal.SIGTERM, handle_sigterm)
     
     try:
         server.wait_for_termination()

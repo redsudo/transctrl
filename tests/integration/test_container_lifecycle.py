@@ -38,10 +38,18 @@ def client():
 def clean_state(client):
     """Ensure no managed containers exist before/after test."""
     # Clean before
-    client.Reconcile(transctrl_pb2.DesiredState(instances=[]))
+    print("\n[clean_state] ensuring clean state before test...")
+    status = client.Reconcile(transctrl_pb2.DesiredState(instances=[]))
+    if status.destroyed_count > 0:
+        print(f"[clean_state] cleaned up {status.destroyed_count} leftover containers")
+    
     yield
+    
     # Clean after - destroy any containers created during test
-    client.Reconcile(transctrl_pb2.DesiredState(instances=[]))
+    print("[clean_state] cleaning up after test...")
+    status = client.Reconcile(transctrl_pb2.DesiredState(instances=[]))
+    if status.destroyed_count > 0:
+        print(f"[clean_state] destroyed {status.destroyed_count} containers created during test")
 
 
 def create_instance_spec(
@@ -72,6 +80,7 @@ class TestContainerCreation:
     def test_create_single_container(self, client, clean_state):
         """Reconcile with one instance should create one container."""
         spec = create_instance_spec("test-create-1")
+        print(f"\n[test] Creating single container: id={spec.id}, ports={spec.web_port}/{spec.data_port}, config={spec.config_path}")
         request = transctrl_pb2.DesiredState(instances=[spec])
 
         result = client.Reconcile(request)
@@ -83,10 +92,13 @@ class TestContainerCreation:
 
     def test_create_multiple_containers(self, client, clean_state):
         """Reconcile with multiple instances should create all containers."""
+        print("\n[test] Creating multiple containers:")
         specs = [
             create_instance_spec("test-multi-1", web_port=19091, data_port=61413),
             create_instance_spec("test-multi-2", web_port=19092, data_port=61414),
         ]
+        for s in specs:
+            print(f"  - id={s.id}, ports={s.web_port}/{s.data_port}, config={s.config_path}")
         request = transctrl_pb2.DesiredState(instances=specs)
 
         result = client.Reconcile(request)
@@ -102,12 +114,15 @@ class TestContainerStatus:
     def test_get_status_returns_running_container(self, client, clean_state):
         """GetStatus should return info about running containers."""
         spec = create_instance_spec("test-status-1")
+        print(f"\n[test] Creating container to check status: id={spec.id}")
         client.Reconcile(transctrl_pb2.DesiredState(instances=[spec]))
         
         # Give container a moment to start
         time.sleep(2)
 
         status = client.GetStatus(transctrl_pb2.Empty())
+        for instance in status.instances:
+            print(f"[test] Status check: id={instance.id}, status={transctrl_pb2.Status.Name(instance.status)}")
 
         assert len(status.instances) == 1
         instance = status.instances[0]
@@ -119,6 +134,7 @@ class TestContainerStatus:
     def test_get_instance_by_id(self, client, clean_state):
         """GetInstance should return specific container info."""
         spec = create_instance_spec("test-get-1")
+        print(f"\n[test] Creating container to check instance by ID: id={spec.id}")
         client.Reconcile(transctrl_pb2.DesiredState(instances=[spec]))
         time.sleep(1)
 
@@ -142,6 +158,7 @@ class TestContainerDestruction:
         """Removing an instance from desired state should destroy it."""
         # First create a container
         spec = create_instance_spec("test-destroy-1")
+        print(f"\n[test] Creating container to destroy: id={spec.id}")
         client.Reconcile(transctrl_pb2.DesiredState(instances=[spec]))
         time.sleep(1)
 
@@ -150,6 +167,7 @@ class TestContainerDestruction:
         assert len(status.instances) == 1
 
         # Reconcile with empty list should destroy it
+        print(f"[test] Destroying container: id={spec.id}")
         result = client.Reconcile(transctrl_pb2.DesiredState(instances=[]))
 
         assert result.destroyed_count == 1
@@ -167,11 +185,13 @@ class TestContainerRecreation:
         """Changing port should trigger recreation."""
         # Create initial container
         spec1 = create_instance_spec("test-recreate-1", web_port=19091)
+        print(f"\n[test] Creating initial container: id={spec1.id}, web_port={spec1.web_port}")
         client.Reconcile(transctrl_pb2.DesiredState(instances=[spec1]))
         time.sleep(1)
 
         # Change the port
         spec2 = create_instance_spec("test-recreate-1", web_port=19099)
+        print(f"[test] Updating port to trigger recreate: id={spec2.id}, new_web_port={spec2.web_port}")
         result = client.Reconcile(transctrl_pb2.DesiredState(instances=[spec2]))
 
         # recreated_count is incremented, and since recreation involves destroy+create,
@@ -186,12 +206,14 @@ class TestContainerRecreation:
     def test_unchanged_when_same_config(self, client, clean_state):
         """Same config should not trigger recreation."""
         spec = create_instance_spec("test-unchanged-1")
+        print(f"\n[test] Creating initial container: id={spec.id}")
         
         # First reconcile creates
         client.Reconcile(transctrl_pb2.DesiredState(instances=[spec]))
         time.sleep(1)
 
         # Second reconcile with same config should be unchanged
+        print("[test] Reconciling with same config...")
         result = client.Reconcile(transctrl_pb2.DesiredState(instances=[spec]))
 
         assert result.unchanged_count == 1
