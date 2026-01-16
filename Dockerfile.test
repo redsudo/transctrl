@@ -1,0 +1,17 @@
+# Dockerfile.test - Docker-in-Docker test runner
+# Builds and runs transctrl inside DinD, then runs pytest against it
+FROM docker:27-dind
+
+# Install Python for running pytest (minimal - just for test client)
+RUN apk add --no-cache python3 py3-pip py3-grpcio py3-pytest py3-protobuf
+
+WORKDIR /app
+
+# Copy entire project - we'll build transctrl image inside DinD
+COPY . .
+
+# Copy test runner script
+COPY scripts/run-integration-tests.sh /run-tests.sh
+RUN chmod +x /run-tests.sh
+
+ENTRYPOINT ["/run-tests.sh"]

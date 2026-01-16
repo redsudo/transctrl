@@ -15,8 +15,9 @@ COPY proto/ ./proto/
 COPY src/ ./src/
 COPY pyproject.toml uv.lock ./
 
-# Generate gRPC code
-RUN uv run python -m grpc_tools.protoc -I./proto --python_out=./src --grpc_python_out=./src ./proto/transctrl.proto
+# Generate gRPC code and fix imports for module execution
+RUN uv run python -m grpc_tools.protoc -I./proto --python_out=./src --grpc_python_out=./src ./proto/transctrl.proto && \
+    sed -i 's/^import transctrl_pb2/from . import transctrl_pb2/' ./src/transctrl_pb2_grpc.py
 
 # Final stage
 FROM python:3.12-slim-bookworm
@@ -37,4 +38,4 @@ RUN mkdir -p /var/run/transctrl && chown 1000:1000 /var/run/transctrl
 
 USER 1000:1000
 
-CMD ["python", "src/server.py"]
+CMD ["python", "-m", "src.server"]

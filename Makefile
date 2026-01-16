@@ -1,4 +1,4 @@
-.PHONY: proto clean test build-image
+.PHONY: proto clean test build-image test-integration
 
 PYTHON=uv run python
 PIP=uv pip
@@ -11,7 +11,12 @@ clean:
 	rm -f src/*_pb2.py src/*_pb2_grpc.py
 
 test:
-	PYTHONPATH=. uv run pytest tests/
+	PYTHONPATH=. uv run pytest tests/ -v --ignore=tests/integration
 
 build-image:
 	docker build -t transctrl:latest .
+
+test-integration:
+	docker build -f Dockerfile.test -t transctrl-test .
+	docker run --privileged --rm transctrl-test
+

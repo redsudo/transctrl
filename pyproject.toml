@@ -5,7 +5,7 @@ description = "A secure service that manages Transmission Docker containers decl
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "docker==6.1.3",
+    "docker>=7.0.0",
     "grpcio==1.60.0",
     "grpcio-tools==1.60.0",
     "pydantic==2.5.2",
