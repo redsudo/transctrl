@@ -63,7 +63,7 @@ class DockerClient:
             # Drop ALL capabilities, add only those needed
             # "cap_drop": ["ALL"],
             # "cap_add": ["CHOWN", "SETGID", "SETUID"],
-            # security_opt=["no-new-privileges:true"]
+            # security_opt=["no-new-privileges=true"]
             
             container = self.client.containers.run(
                 image,
@@ -82,7 +82,7 @@ class DockerClient:
                 cpu_quota=cpu_quota,
                 cap_drop=["ALL"],
                 cap_add=["CHOWN", "SETGID", "SETUID"],
-                security_opt=["no-new-privileges:true"],
+                security_opt=["no-new-privileges=true"],
                 network_mode="bridge"
             )
             return container
