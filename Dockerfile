@@ -1,5 +1,5 @@
 # Build stage
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS builder
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
@@ -20,7 +20,7 @@ RUN uv run python -m grpc_tools.protoc -I./proto --python_out=./src --grpc_pytho
     sed -i 's/^import transctrl_pb2/from . import transctrl_pb2/' ./src/transctrl_pb2_grpc.py
 
 # Final stage
-FROM python:3.12-slim-bookworm
+FROM python:3.14-slim-bookworm
 
 WORKDIR /app
 

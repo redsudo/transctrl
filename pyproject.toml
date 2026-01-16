@@ -3,7 +3,7 @@ name = "transctrl"
 version = "0.1.0"
 description = "A secure service that manages Transmission Docker containers declaratively via gRPC over Unix sockets"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "docker>=7.0.0",
     "grpcio>=1.76.0",
